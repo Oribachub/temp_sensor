@@ -1,65 +1,87 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-
+#!/usr/bin/env python3
 import adafruit_dht
 import board
 import time
-from telegram import Update, Bot
-from telegram.ext import Updater, CommandHandler, CallbackContext
 import schedule
 import threading
+
+from telegram import Bot, Update
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    Filters,
+    CallbackContext,
+)
 # === CONFIG ===
 BOT_TOKEN = '7636381534:AAGLVrRfKwcMNiOqud_XqJgyDnfkeI81dbk'
 CHAT_ID = '7636381534'  # your personal chat ID
 
+# === SETUP DHT ===
+dht = adafruit_dht.DHT11(board.D26)
 
-# === Setup DHT ===
-dhtDevice = adafruit_dht.DHT11(board.D26)
+def read_temperature() -> str:
+    try:
+        t = dht.temperature
+        return f"{t:.1f}°C" if t is not None else "N/A"
+    except Exception:
+        return "Error reading temperature"
 
-# === Setup Telegram Bot ===
+def read_humidity() -> str:
+    try:
+        h = dht.humidity
+        return f"{h:.1f}%" if h is not None else "N/A"
+    except Exception:
+        return "Error reading humidity"
+
+def read_both() -> str:
+    t = read_temperature()
+    h = read_humidity()
+    return f"🌡️ Temp: {t}\n💧 Humidity: {h}"
+
+# === SETUP TELEGRAM ===
 bot = Bot(token=BOT_TOKEN)
 updater = Updater(token=BOT_TOKEN, use_context=True)
 dispatcher = updater.dispatcher
 
-# === Function to read sensor ===
-def read_dht():
-    try:
-        temperature_c = dhtDevice.temperature
-        humidity = dhtDevice.humidity
-        if temperature_c is not None and humidity is not None:
-            return f"?? Temp: {temperature_c}°C\n? Humidity: {humidity}%"
-        else:
-            return "Failed to read DHT."
-    except Exception as e:
-        return f"Error: {e}"
-
-# === Send reading to user ===
-def send_reading():
-    message = read_dht()
-    bot.send_message(chat_id=CHAT_ID, text=message)
-
-# === Handler for /status command ===
+# — /status command —
 def status(update: Update, context: CallbackContext):
-    message = read_dht()
-    context.bot.send_message(chat_id=update.effective_chat.id, text=message)
+    update.message.reply_text(read_both())
 
-status_handler = CommandHandler('status', status)
-dispatcher.add_handler(status_handler)
+dispatcher.add_handler(CommandHandler("status", status))
 
-# === Schedule hourly sending ===
-schedule.every().hour.do(send_reading)
+# — text handler for “temp”, “humidity”, “all” —
+def handle_text(update: Update, context: CallbackContext):
+    txt = update.message.text.strip().lower()
+    if txt == "temp":
+        update.message.reply_text(f"🌡️ Temperature is {read_temperature()}")
+    elif txt == "humidity":
+        update.message.reply_text(f"💧 Humidity is {read_humidity()}")
+    elif txt == "all":
+        update.message.reply_text(read_both())
+    # else: you can ignore or send a help message
+    # else:
+    #     update.message.reply_text("Send 'temp', 'humidity' or 'all'.")
 
-# === Thread to run schedule in background ===
+dispatcher.add_handler(
+    MessageHandler(Filters.text & ~Filters.command, handle_text)
+)
+
+# — hourly push —
+def send_reading():
+    bot.send_message(chat_id=CHAT_ID, text=read_both())
+
+schedule.every(15).seconds.do(send_reading)
+
 def run_schedule():
     while True:
         schedule.run_pending()
         time.sleep(1)
 
-schedule_thread = threading.Thread(target=run_schedule)
-schedule_thread.daemon = True
-schedule_thread.start()
+thread = threading.Thread(target=run_schedule, daemon=True)
+thread.start()
 
-# === Start bot polling ===
-print("Bot is running. Type /status in your Telegram to get a reading.")
+# — start polling —
+print("🚀 HeatBot started. Send /status, or just text 'temp', 'humidity' or 'all'.")
 updater.start_polling()
 updater.idle()
