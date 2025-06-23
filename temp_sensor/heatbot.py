@@ -15,29 +15,41 @@ from telegram.ext import (
 )
 # === CONFIG ===
 BOT_TOKEN = '7636381534:AAGLVrRfKwcMNiOqud_XqJgyDnfkeI81dbk'
-CHAT_ID = '7636381534'  # your personal chat ID
+CHAT_ID = '583154813'  # your personal chat ID
+SEND_INTERVAL_MINUTES = 10  # configurable interval in minutes
 
 # === SETUP DHT ===
 dht = adafruit_dht.DHT11(board.D26)
 
+# === SAFE READ FUNCTION ===
+def safe_read():
+    """
+    Attempt to read temp and humidity until valid values are obtained.
+    Retries indefinitely with 1s delay on failure or None values.
+    """
+    while True:
+        try:
+            t = dht.temperature
+            h = dht.humidity
+            if t is not None and h is not None:
+                return t, h
+        except Exception:
+            # ignore and retry
+            pass
+        time.sleep(1)
+
+# === READ HELPERS ===
 def read_temperature() -> str:
-    try:
-        t = dht.temperature
-        return f"{t:.1f}°C" if t is not None else "N/A"
-    except Exception:
-        return "Error reading temperature"
+    t, _ = safe_read()
+    return f"{t:.1f}°C"
 
 def read_humidity() -> str:
-    try:
-        h = dht.humidity
-        return f"{h:.1f}%" if h is not None else "N/A"
-    except Exception:
-        return "Error reading humidity"
+    _, h = safe_read()
+    return f"{h:.1f}%"
 
 def read_both() -> str:
-    t = read_temperature()
-    h = read_humidity()
-    return f"🌡️ Temp: {t}\n💧 Humidity: {h}"
+    t, h = safe_read()
+    return f"🌡️ Temp: {t:.1f}°C\n💧 Humidity: {h:.1f}%"
 
 # === SETUP TELEGRAM ===
 bot = Bot(token=BOT_TOKEN)
@@ -59,19 +71,16 @@ def handle_text(update: Update, context: CallbackContext):
         update.message.reply_text(f"💧 Humidity is {read_humidity()}")
     elif txt == "all":
         update.message.reply_text(read_both())
-    # else: you can ignore or send a help message
-    # else:
-    #     update.message.reply_text("Send 'temp', 'humidity' or 'all'.")
 
-dispatcher.add_handler(
-    MessageHandler(Filters.text & ~Filters.command, handle_text)
-)
+# register text handler
+message_filter = Filters.text & ~Filters.command
+dispatcher.add_handler(MessageHandler(message_filter, handle_text))
 
-# — hourly push —
+# — periodic send —
 def send_reading():
     bot.send_message(chat_id=CHAT_ID, text=read_both())
 
-schedule.every(15).seconds.do(send_reading)
+schedule.every(SEND_INTERVAL_MINUTES).minutes.do(send_reading)
 
 def run_schedule():
     while True:
@@ -81,7 +90,8 @@ def run_schedule():
 thread = threading.Thread(target=run_schedule, daemon=True)
 thread.start()
 
-# — start polling —
-print("🚀 HeatBot started. Send /status, or just text 'temp', 'humidity' or 'all'.")
+# — start bot —
+print(f"🚀 HeatBot started. Interval: {SEND_INTERVAL_MINUTES} min.\n"
+      "Use /status or text 'temp', 'humidity', 'all'.")
 updater.start_polling()
 updater.idle()
