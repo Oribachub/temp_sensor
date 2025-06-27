@@ -20,7 +20,7 @@ from telegram.ext import (
 # === CONFIGURATION ===
 BOT_TOKEN = '7636381534:AAGLVrRfKwcMNiOqud_XqJgyDnfkeI81dbk'
 CHAT_ID = '583154813'  # your personal chat ID
-SEND_INTERVAL_MINUTES = 1       # Interval for automated sends (in minutes)
+SEND_INTERVAL_MINUTES = 5       # Interval for automated sends (in minutes)
 LOG_FILE = 'sensor_log.csv'      # CSV log file path
 
 # === SETUP SENSOR ===
