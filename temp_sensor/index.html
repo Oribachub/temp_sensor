@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sensor Dashboard</title>
+  <!-- Cache bust: v2 - SVG charts only, no Chart.js -->
 
   <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
 
@@ -335,6 +336,11 @@
   </div>
 
   <script>
+    // Debug: Check if Chart.js is somehow loaded
+    console.log('Dashboard loading...');
+    console.log('Chart object available:', typeof Chart !== 'undefined' ? 'YES' : 'NO');
+    console.log('Moment available:', typeof moment !== 'undefined' ? 'YES' : 'NO');
+    
     // API configuration
     let apiBaseUrl = localStorage.getItem('apiBaseUrl') || 'https://temp-sensor.onrender.com';
 
