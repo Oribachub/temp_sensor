@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sensor Dashboard</title>
 
-  <!-- Chart.js from CDN for Netlify deployment -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
 
   <style>
@@ -179,6 +177,73 @@
       color: rgba(255, 255, 255, 0.7);
     }
 
+    /* Simple chart styles */
+    .simple-chart {
+      width: 100%;
+      height: 300px;
+      position: relative;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .chart-line {
+      fill: none;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .temp-line {
+      stroke: #ff6384;
+    }
+
+    .humidity-line {
+      stroke: #36a2eb;
+    }
+
+    .chart-point {
+      fill: white;
+      stroke-width: 2;
+    }
+
+    .temp-point {
+      stroke: #ff6384;
+    }
+
+    .humidity-point {
+      stroke: #36a2eb;
+    }
+
+    .chart-legend {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 15px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .legend-color {
+      width: 16px;
+      height: 3px;
+      border-radius: 2px;
+    }
+
+    .temp-legend {
+      background: #ff6384;
+    }
+
+    .humidity-legend {
+      background: #36a2eb;
+    }
+
     @media (max-width: 768px) {
       .header h1 {
         font-size: 2rem;
@@ -255,7 +320,7 @@
         <h2>📊 Last 24 Hours</h2>
         <div class="chart-container">
           <div class="loading" id="loading24">Loading 24-hour data...</div>
-          <canvas id="chart24"></canvas>
+          <div id="chart24" class="simple-chart"></div>
         </div>
       </div>
 
@@ -263,7 +328,7 @@
         <h2>📈 Last 7 Days</h2>
         <div class="chart-container">
           <div class="loading" id="loading7">Loading 7-day data...</div>
-          <canvas id="chart7"></canvas>
+          <div id="chart7" class="simple-chart"></div>
         </div>
       </div>
     </div>
@@ -272,10 +337,6 @@
   <script>
     // API configuration
     let apiBaseUrl = localStorage.getItem('apiBaseUrl') || 'https://temp-sensor.onrender.com';
-
-    // Store chart instances
-    let chart24 = null;
-    let chart7 = null;
 
     function updateApiUrl() {
       const newUrl = document.getElementById('apiUrl').value.trim();
@@ -308,148 +369,104 @@
       }
     }
 
-    function makeChart(ctx, data, period) {
-      if (!data.length) {
-        // Hide the canvas and show no data message
-        ctx.canvas.style.display = 'none';
-        const noDataDiv = document.createElement('div');
-        noDataDiv.className = 'no-data';
-        noDataDiv.textContent = 'No data available for this time period.';
-        ctx.canvas.parentNode.appendChild(noDataDiv);
-        return null;
+    function createSimpleChart(containerId, data, period) {
+      const container = document.getElementById(containerId);
+      
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div class="no-data">No data available for this time period.</div>';
+        return;
       }
 
-      // Create simple labels without any date processing
-      const labels = data.map((d, index) => {
-        const date = new Date(d.timestamp);
-        if (period === '24h') {
-          return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-        } else {
-          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        }
+      // Clear container
+      container.innerHTML = '';
+
+      // Create SVG
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('viewBox', '0 0 800 300');
+
+      // Calculate scales
+      const margin = { top: 20, right: 60, bottom: 40, left: 60 };
+      const width = 800 - margin.left - margin.right;
+      const height = 300 - margin.top - margin.bottom;
+
+      // Find min/max values
+      const tempValues = data.map(d => d.temperature);
+      const humidityValues = data.map(d => d.humidity);
+      const tempMin = Math.min(...tempValues);
+      const tempMax = Math.max(...tempValues);
+      const humidityMin = Math.min(...humidityValues);
+      const humidityMax = Math.max(...humidityValues);
+
+      // Create scales
+      const xScale = (index) => margin.left + (index / (data.length - 1)) * width;
+      const tempYScale = (value) => margin.top + height - ((value - tempMin) / (tempMax - tempMin)) * height;
+      const humidityYScale = (value) => margin.top + height - ((value - humidityMin) / (humidityMax - humidityMin)) * height;
+
+      // Create temperature line
+      const tempPath = data.map((d, i) => {
+        const x = xScale(i);
+        const y = tempYScale(d.temperature);
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+      }).join(' ');
+
+      const tempLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      tempLine.setAttribute('d', tempPath);
+      tempLine.setAttribute('class', 'chart-line temp-line');
+      svg.appendChild(tempLine);
+
+      // Create humidity line
+      const humidityPath = data.map((d, i) => {
+        const x = xScale(i);
+        const y = humidityYScale(d.humidity);
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+      }).join(' ');
+
+      const humidityLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      humidityLine.setAttribute('d', humidityPath);
+      humidityLine.setAttribute('class', 'chart-line humidity-line');
+      svg.appendChild(humidityLine);
+
+      // Add points
+      data.forEach((d, i) => {
+        const x = xScale(i);
+        const tempY = tempYScale(d.temperature);
+        const humidityY = humidityYScale(d.humidity);
+
+        // Temperature point
+        const tempPoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        tempPoint.setAttribute('cx', x);
+        tempPoint.setAttribute('cy', tempY);
+        tempPoint.setAttribute('r', '4');
+        tempPoint.setAttribute('class', 'chart-point temp-point');
+        svg.appendChild(tempPoint);
+
+        // Humidity point
+        const humidityPoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        humidityPoint.setAttribute('cx', x);
+        humidityPoint.setAttribute('cy', humidityY);
+        humidityPoint.setAttribute('r', '4');
+        humidityPoint.setAttribute('class', 'chart-point humidity-point');
+        svg.appendChild(humidityPoint);
       });
 
-      const gradient1 = ctx.createLinearGradient(0, 0, 0, 400);
-      gradient1.addColorStop(0, 'rgba(255, 99, 132, 0.2)');
-      gradient1.addColorStop(1, 'rgba(255, 99, 132, 0)');
+      // Add legend
+      const legend = document.createElement('div');
+      legend.className = 'chart-legend';
+      legend.innerHTML = `
+        <div class="legend-item">
+          <div class="legend-color temp-legend"></div>
+          <span>Temperature (°C)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color humidity-legend"></div>
+          <span>Humidity (%)</span>
+        </div>
+      `;
 
-      const gradient2 = ctx.createLinearGradient(0, 0, 0, 400);
-      gradient2.addColorStop(0, 'rgba(54, 162, 235, 0.2)');
-      gradient2.addColorStop(1, 'rgba(54, 162, 235, 0)');
-
-      return new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Temperature (°C)',
-            data: data.map(d => d.temperature),
-            borderColor: '#ff6384',
-            backgroundColor: gradient1,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            yAxisID: 'y1',
-            pointRadius: 4,
-            pointHoverRadius: 6
-          },{
-            label: 'Humidity (%)',
-            data: data.map(d => d.humidity),
-            borderColor: '#36a2eb',
-            backgroundColor: gradient2,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            yAxisID: 'y2',
-            pointRadius: 4,
-            pointHoverRadius: 6
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: {
-            intersect: false,
-            mode: 'index'
-          },
-          plugins: {
-            legend: {
-              position: 'top',
-              labels: {
-                usePointStyle: true,
-                padding: 20,
-                font: {
-                  size: 12,
-                  weight: '600'
-                }
-              }
-            },
-            tooltip: {
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-              titleColor: '#fff',
-              bodyColor: '#fff',
-              borderColor: 'rgba(255, 255, 255, 0.1)',
-              borderWidth: 1,
-              cornerRadius: 8,
-              displayColors: true,
-              callbacks: {
-                title: function(context) {
-                  const dataIndex = context[0].dataIndex;
-                  const timestamp = data[dataIndex].timestamp;
-                  const date = new Date(timestamp);
-                  return date.toLocaleString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric', 
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    hour12: false 
-                  });
-                }
-              }
-            }
-          },
-          scales: {
-            x: {
-              type: 'category',
-              title: { 
-                display: true, 
-                text: 'Time',
-                font: { weight: '600' }
-              },
-              grid: {
-                color: 'rgba(0, 0, 0, 0.1)'
-              },
-              ticks: {
-                maxTicksLimit: 12,
-                maxRotation: 45
-              }
-            },
-            y1: {
-              position: 'left',
-              title: { 
-                display: true, 
-                text: 'Temperature (°C)',
-                font: { weight: '600' }
-              },
-              grid: {
-                color: 'rgba(0, 0, 0, 0.1)'
-              }
-            },
-            y2: {
-              position: 'right',
-              title: { 
-                display: true, 
-                text: 'Humidity (%)',
-                font: { weight: '600' }
-              },
-              grid: {
-                drawOnChartArea: false,
-                color: 'rgba(0, 0, 0, 0.1)'
-              }
-            }
-          }
-        }
-      });
+      container.appendChild(svg);
+      container.appendChild(legend);
     }
 
     async function loadData() {
@@ -458,16 +475,6 @@
         document.getElementById('loading24').classList.remove('hidden');
         document.getElementById('loading7').classList.remove('hidden');
 
-        // Destroy existing charts if they exist
-        if (chart24) {
-          chart24.destroy();
-          chart24 = null;
-        }
-        if (chart7) {
-          chart7.destroy();
-          chart7 = null;
-        }
-
         const data24 = await fetchData('/data/24h');
         const data7 = await fetchData('/data/7d');
 
@@ -475,11 +482,8 @@
         updateStats(data24);
 
         // Create charts
-        const ctx24 = document.getElementById('chart24').getContext('2d');
-        chart24 = makeChart(ctx24, data24, '24h');
-
-        const ctx7 = document.getElementById('chart7').getContext('2d');
-        chart7 = makeChart(ctx7, data7, '7d');
+        createSimpleChart('chart24', data24, '24h');
+        createSimpleChart('chart7', data7, '7d');
 
       } catch (e) {
         document.body.insertAdjacentHTML(
