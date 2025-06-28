@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from flask import Flask, render_template_string, jsonify, url_for
+from flask_cors import CORS
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 import os
@@ -10,6 +11,7 @@ HOST     = '0.0.0.0'
 PORT     = 5000
 
 app = Flask(__name__, static_folder='static')
+CORS(app)  # Enable CORS for all routes
 
 HTML = """
 <!doctype html>
