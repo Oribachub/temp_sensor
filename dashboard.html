@@ -205,6 +205,12 @@
     .chart-point {
       fill: white;
       stroke-width: 2;
+      cursor: pointer;
+      transition: r 0.2s ease;
+    }
+
+    .chart-point:hover {
+      r: 6;
     }
 
     .temp-point {
@@ -213,6 +219,18 @@
 
     .humidity-point {
       stroke: #36a2eb;
+    }
+
+    .tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 1000;
+      display: none;
     }
 
     .chart-legend {
@@ -228,6 +246,14 @@
       gap: 8px;
       font-size: 14px;
       color: #666;
+      cursor: pointer;
+      padding: 5px 10px;
+      border-radius: 4px;
+      transition: background-color 0.2s ease;
+    }
+
+    .legend-item:hover {
+      background-color: #f5f5f5;
     }
 
     .legend-color {
@@ -242,6 +268,30 @@
 
     .humidity-legend {
       background: #36a2eb;
+    }
+
+    .chart-info {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    .refresh-button {
+      background: linear-gradient(45deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 20px auto;
+      display: block;
+      transition: transform 0.2s ease;
+    }
+
+    .refresh-button:hover {
+      transform: translateY(-2px);
     }
 
     @media (max-width: 768px) {
@@ -334,6 +384,10 @@
     </div>
   </div>
 
+  <div id="tooltip" class="tooltip"></div>
+
+  <button class="refresh-button" onclick="loadData()">🔄 Refresh Data</button>
+
   <script>
     // Debug: Check if Chart.js is somehow loaded
     console.log('Dashboard loading...');
@@ -389,25 +443,83 @@
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('width', '100%');
       svg.setAttribute('height', '100%');
-      svg.setAttribute('viewBox', '0 0 800 300');
+      svg.setAttribute('viewBox', '0 0 900 400');
 
       // Calculate scales
-      const margin = { top: 20, right: 60, bottom: 40, left: 60 };
-      const width = 800 - margin.left - margin.right;
-      const height = 300 - margin.top - margin.bottom;
+      const margin = { top: 30, right: 80, bottom: 60, left: 80 };
+      const width = 900 - margin.left - margin.right;
+      const height = 400 - margin.top - margin.bottom;
 
       // Find min/max values
       const tempValues = data.map(d => d.temperature);
       const humidityValues = data.map(d => d.humidity);
-      const tempMin = Math.min(...tempValues);
-      const tempMax = Math.max(...tempValues);
-      const humidityMin = Math.min(...humidityValues);
-      const humidityMax = Math.max(...humidityValues);
+      const tempMin = Math.floor(Math.min(...tempValues) - 1);
+      const tempMax = Math.ceil(Math.max(...tempValues) + 1);
+      const humidityMin = Math.floor(Math.min(...humidityValues) - 1);
+      const humidityMax = Math.ceil(Math.max(...humidityValues) + 1);
 
       // Create scales
       const xScale = (index) => margin.left + (index / (data.length - 1)) * width;
       const tempYScale = (value) => margin.top + height - ((value - tempMin) / (tempMax - tempMin)) * height;
       const humidityYScale = (value) => margin.top + height - ((value - humidityMin) / (humidityMax - humidityMin)) * height;
+
+      // Add grid lines
+      const gridGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      gridGroup.setAttribute('class', 'grid');
+
+      // Horizontal grid lines for temperature
+      for (let i = 0; i <= 5; i++) {
+        const y = margin.top + (i / 5) * height;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', margin.left);
+        line.setAttribute('x2', margin.left + width);
+        line.setAttribute('y1', y);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', '#f0f0f0');
+        line.setAttribute('stroke-width', '1');
+        line.setAttribute('stroke-dasharray', '5,5');
+        gridGroup.appendChild(line);
+      }
+
+      // Vertical grid lines
+      for (let i = 0; i <= 4; i++) {
+        const x = margin.left + (i / 4) * width;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x);
+        line.setAttribute('x2', x);
+        line.setAttribute('y1', margin.top);
+        line.setAttribute('y2', margin.top + height);
+        line.setAttribute('stroke', '#f0f0f0');
+        line.setAttribute('stroke-width', '1');
+        line.setAttribute('stroke-dasharray', '5,5');
+        gridGroup.appendChild(line);
+      }
+
+      svg.appendChild(gridGroup);
+
+      // Create temperature line with gradient
+      const tempGradient = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      const tempGrad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+      tempGrad.setAttribute('id', 'tempGradient');
+      tempGrad.innerHTML = `
+        <stop offset="0%" stop-color="rgba(255, 99, 132, 0.3)"/>
+        <stop offset="100%" stop-color="rgba(255, 99, 132, 0.1)"/>
+      `;
+      tempGradient.appendChild(tempGrad);
+      svg.appendChild(tempGradient);
+
+      // Create temperature area
+      const tempAreaPath = data.map((d, i) => {
+        const x = xScale(i);
+        const y = tempYScale(d.temperature);
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+      }).join(' ') + ` L ${xScale(data.length - 1)} ${margin.top + height} L ${xScale(0)} ${margin.top + height} Z`;
+
+      const tempArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      tempArea.setAttribute('d', tempAreaPath);
+      tempArea.setAttribute('fill', 'url(#tempGradient)');
+      tempArea.setAttribute('stroke', 'none');
+      svg.appendChild(tempArea);
 
       // Create temperature line
       const tempPath = data.map((d, i) => {
@@ -421,6 +533,30 @@
       tempLine.setAttribute('class', 'chart-line temp-line');
       svg.appendChild(tempLine);
 
+      // Create humidity line with gradient
+      const humidityGradient = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      const humidityGrad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+      humidityGrad.setAttribute('id', 'humidityGradient');
+      humidityGrad.innerHTML = `
+        <stop offset="0%" stop-color="rgba(54, 162, 235, 0.3)"/>
+        <stop offset="100%" stop-color="rgba(54, 162, 235, 0.1)"/>
+      `;
+      humidityGradient.appendChild(humidityGrad);
+      svg.appendChild(humidityGradient);
+
+      // Create humidity area
+      const humidityAreaPath = data.map((d, i) => {
+        const x = xScale(i);
+        const y = humidityYScale(d.humidity);
+        return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+      }).join(' ') + ` L ${xScale(data.length - 1)} ${margin.top + height} L ${xScale(0)} ${margin.top + height} Z`;
+
+      const humidityArea = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      humidityArea.setAttribute('d', humidityAreaPath);
+      humidityArea.setAttribute('fill', 'url(#humidityGradient)');
+      humidityArea.setAttribute('stroke', 'none');
+      svg.appendChild(humidityArea);
+
       // Create humidity line
       const humidityPath = data.map((d, i) => {
         const x = xScale(i);
@@ -433,7 +569,7 @@
       humidityLine.setAttribute('class', 'chart-line humidity-line');
       svg.appendChild(humidityLine);
 
-      // Add points
+      // Add points with tooltips
       data.forEach((d, i) => {
         const x = xScale(i);
         const tempY = tempYScale(d.temperature);
@@ -445,6 +581,9 @@
         tempPoint.setAttribute('cy', tempY);
         tempPoint.setAttribute('r', '4');
         tempPoint.setAttribute('class', 'chart-point temp-point');
+        tempPoint.setAttribute('data-temp', d.temperature);
+        tempPoint.setAttribute('data-humidity', d.humidity);
+        tempPoint.setAttribute('data-time', d.timestamp);
         svg.appendChild(tempPoint);
 
         // Humidity point
@@ -453,12 +592,150 @@
         humidityPoint.setAttribute('cy', humidityY);
         humidityPoint.setAttribute('r', '4');
         humidityPoint.setAttribute('class', 'chart-point humidity-point');
+        humidityPoint.setAttribute('data-temp', d.temperature);
+        humidityPoint.setAttribute('data-humidity', d.humidity);
+        humidityPoint.setAttribute('data-time', d.timestamp);
         svg.appendChild(humidityPoint);
+
+        // Add mouse events for tooltips
+        [tempPoint, humidityPoint].forEach(point => {
+          point.addEventListener('mouseenter', (e) => {
+            const tooltip = document.getElementById('tooltip');
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            tooltip.style.left = x + 10 + 'px';
+            tooltip.style.top = y - 10 + 'px';
+            tooltip.style.display = 'block';
+            tooltip.innerHTML = `
+              <strong>${moment(d.timestamp).format('MMM D, HH:mm')}</strong><br>
+              Temperature: ${d.temperature.toFixed(1)}°C<br>
+              Humidity: ${d.humidity.toFixed(1)}%
+            `;
+          });
+
+          point.addEventListener('mouseleave', () => {
+            document.getElementById('tooltip').style.display = 'none';
+          });
+        });
       });
+
+      // Add X-axis
+      const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      xAxis.setAttribute('x1', margin.left);
+      xAxis.setAttribute('x2', margin.left + width);
+      xAxis.setAttribute('y1', margin.top + height);
+      xAxis.setAttribute('y2', margin.top + height);
+      xAxis.setAttribute('stroke', '#333');
+      xAxis.setAttribute('stroke-width', '2');
+      svg.appendChild(xAxis);
+
+      // Add Y-axis (temperature)
+      const yAxisTemp = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      yAxisTemp.setAttribute('x1', margin.left);
+      yAxisTemp.setAttribute('x2', margin.left);
+      yAxisTemp.setAttribute('y1', margin.top);
+      yAxisTemp.setAttribute('y2', margin.top + height);
+      yAxisTemp.setAttribute('stroke', '#333');
+      yAxisTemp.setAttribute('stroke-width', '2');
+      svg.appendChild(yAxisTemp);
+
+      // Add Y-axis (humidity)
+      const yAxisHumidity = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      yAxisHumidity.setAttribute('x1', margin.left + width);
+      yAxisHumidity.setAttribute('x2', margin.left + width);
+      yAxisHumidity.setAttribute('y1', margin.top);
+      yAxisHumidity.setAttribute('y2', margin.top + height);
+      yAxisHumidity.setAttribute('stroke', '#333');
+      yAxisHumidity.setAttribute('stroke-width', '2');
+      svg.appendChild(yAxisHumidity);
+
+      // Add X-axis labels
+      const timeLabels = data.filter((_, i) => i % Math.ceil(data.length / 5) === 0 || i === data.length - 1);
+      timeLabels.forEach((d, i) => {
+        const x = xScale(data.indexOf(d));
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', x);
+        text.setAttribute('y', margin.top + height + 20);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('font-size', '12');
+        text.setAttribute('fill', '#666');
+        text.textContent = moment(d.timestamp).format('HH:mm');
+        svg.appendChild(text);
+      });
+
+      // Add Y-axis labels (temperature)
+      for (let i = 0; i <= 5; i++) {
+        const value = tempMin + (i / 5) * (tempMax - tempMin);
+        const y = margin.top + (i / 5) * height;
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', margin.left - 10);
+        text.setAttribute('y', y + 4);
+        text.setAttribute('text-anchor', 'end');
+        text.setAttribute('font-size', '12');
+        text.setAttribute('fill', '#ff6384');
+        text.textContent = value.toFixed(1);
+        svg.appendChild(text);
+      }
+
+      // Add Y-axis labels (humidity)
+      for (let i = 0; i <= 5; i++) {
+        const value = humidityMin + (i / 5) * (humidityMax - humidityMin);
+        const y = margin.top + (i / 5) * height;
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', margin.left + width + 10);
+        text.setAttribute('y', y + 4);
+        text.setAttribute('text-anchor', 'start');
+        text.setAttribute('font-size', '12');
+        text.setAttribute('fill', '#36a2eb');
+        text.textContent = value.toFixed(1);
+        svg.appendChild(text);
+      }
+
+      // Add axis titles
+      const xAxisTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      xAxisTitle.setAttribute('x', margin.left + width / 2);
+      xAxisTitle.setAttribute('y', margin.top + height + 45);
+      xAxisTitle.setAttribute('text-anchor', 'middle');
+      xAxisTitle.setAttribute('font-size', '14');
+      xAxisTitle.setAttribute('font-weight', 'bold');
+      xAxisTitle.setAttribute('fill', '#333');
+      xAxisTitle.textContent = 'Time';
+      svg.appendChild(xAxisTitle);
+
+      const yAxisTempTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      yAxisTempTitle.setAttribute('x', -margin.top - height / 2);
+      yAxisTempTitle.setAttribute('y', margin.left - 30);
+      yAxisTempTitle.setAttribute('text-anchor', 'middle');
+      yAxisTempTitle.setAttribute('font-size', '14');
+      yAxisTempTitle.setAttribute('font-weight', 'bold');
+      yAxisTempTitle.setAttribute('fill', '#ff6384');
+      yAxisTempTitle.setAttribute('transform', `rotate(-90, ${-margin.top - height / 2}, ${margin.left - 30})`);
+      yAxisTempTitle.textContent = 'Temperature (°C)';
+      svg.appendChild(yAxisTempTitle);
+
+      const yAxisHumidityTitle = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      yAxisHumidityTitle.setAttribute('x', -margin.top - height / 2);
+      yAxisHumidityTitle.setAttribute('y', margin.left + width + 30);
+      yAxisHumidityTitle.setAttribute('text-anchor', 'middle');
+      yAxisHumidityTitle.setAttribute('font-size', '14');
+      yAxisHumidityTitle.setAttribute('font-weight', 'bold');
+      yAxisHumidityTitle.setAttribute('fill', '#36a2eb');
+      yAxisHumidityTitle.setAttribute('transform', `rotate(-90, ${-margin.top - height / 2}, ${margin.left + width + 30})`);
+      yAxisHumidityTitle.textContent = 'Humidity (%)';
+      svg.appendChild(yAxisHumidityTitle);
 
       // Add legend
       const legend = document.createElement('div');
       legend.className = 'chart-legend';
+      
+      // Calculate statistics
+      const tempAvg = (tempValues.reduce((a, b) => a + b, 0) / tempValues.length).toFixed(1);
+      const humidityAvg = (humidityValues.reduce((a, b) => a + b, 0) / humidityValues.length).toFixed(1);
+      const tempRange = (tempMax - tempMin).toFixed(1);
+      const humidityRange = (humidityMax - humidityMin).toFixed(1);
+      
       legend.innerHTML = `
         <div class="legend-item">
           <div class="legend-color temp-legend"></div>
@@ -470,8 +747,19 @@
         </div>
       `;
 
+      // Add chart info
+      const chartInfo = document.createElement('div');
+      chartInfo.className = 'chart-info';
+      chartInfo.innerHTML = `
+        <strong>Statistics:</strong> 
+        Temp: ${tempAvg}°C avg (${tempRange}°C range) | 
+        Humidity: ${humidityAvg}% avg (${humidityRange}% range) | 
+        ${data.length} data points
+      `;
+
       container.appendChild(svg);
       container.appendChild(legend);
+      container.appendChild(chartInfo);
     }
 
     async function loadData() {
