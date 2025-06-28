@@ -327,7 +327,7 @@
       new Chart(ctx, {
         type: 'line',
         data: {
-          labels: data.map(d => moment(d.timestamp)),
+          labels: data.map(d => d.timestamp),
           datasets: [{
             label: 'Temperature (°C)',
             data: data.map(d => d.temperature),
@@ -378,7 +378,12 @@
               borderColor: 'rgba(255, 255, 255, 0.1)',
               borderWidth: 1,
               cornerRadius: 8,
-              displayColors: true
+              displayColors: true,
+              callbacks: {
+                title: function(context) {
+                  return moment(context[0].label).format('MMM D, HH:mm');
+                }
+              }
             }
           },
           scales: {
@@ -399,6 +404,11 @@
               },
               grid: {
                 color: 'rgba(0, 0, 0, 0.1)'
+              },
+              adapters: {
+                date: {
+                  locale: 'en'
+                }
               }
             },
             y1: {
