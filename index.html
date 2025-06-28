@@ -273,6 +273,10 @@
     // API configuration
     let apiBaseUrl = localStorage.getItem('apiBaseUrl') || 'https://temp-sensor.onrender.com';
 
+    // Store chart instances
+    let chart24 = null;
+    let chart7 = null;
+
     function updateApiUrl() {
       const newUrl = document.getElementById('apiUrl').value.trim();
       if (newUrl) {
@@ -312,10 +316,10 @@
         noDataDiv.className = 'no-data';
         noDataDiv.textContent = 'No data available for this time period.';
         ctx.canvas.parentNode.appendChild(noDataDiv);
-        return;
+        return null;
       }
 
-      // Create simple labels without date adapter
+      // Create simple labels without any date processing
       const labels = data.map((d, index) => {
         const date = new Date(d.timestamp);
         if (period === '24h') {
@@ -333,7 +337,7 @@
       gradient2.addColorStop(0, 'rgba(54, 162, 235, 0.2)');
       gradient2.addColorStop(1, 'rgba(54, 162, 235, 0)');
 
-      new Chart(ctx, {
+      return new Chart(ctx, {
         type: 'line',
         data: {
           labels: labels,
@@ -454,6 +458,16 @@
         document.getElementById('loading24').classList.remove('hidden');
         document.getElementById('loading7').classList.remove('hidden');
 
+        // Destroy existing charts if they exist
+        if (chart24) {
+          chart24.destroy();
+          chart24 = null;
+        }
+        if (chart7) {
+          chart7.destroy();
+          chart7 = null;
+        }
+
         const data24 = await fetchData('/data/24h');
         const data7 = await fetchData('/data/7d');
 
@@ -462,10 +476,10 @@
 
         // Create charts
         const ctx24 = document.getElementById('chart24').getContext('2d');
-        makeChart(ctx24, data24, '24h');
+        chart24 = makeChart(ctx24, data24, '24h');
 
         const ctx7 = document.getElementById('chart7').getContext('2d');
-        makeChart(ctx7, data7, '7d');
+        chart7 = makeChart(ctx7, data7, '7d');
 
       } catch (e) {
         document.body.insertAdjacentHTML(
