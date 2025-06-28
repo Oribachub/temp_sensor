@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimal Sensor Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+    .stat { display: inline-block; margin: 10px; padding: 15px; background: #e3f2fd; border-radius: 5px; }
+    .data-list { margin-top: 20px; }
+    .data-item { padding: 5px; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🌡️ Minimal Sensor Dashboard</h1>
+    <div id="stats">
+      <div class="stat">Temperature: <span id="temp">--</span>°C</div>
+      <div class="stat">Humidity: <span id="humidity">--</span>%</div>
+      <div class="stat">Last Update: <span id="lastUpdate">--</span></div>
+    </div>
+    <div class="data-list">
+      <h3>Recent Data (24h):</h3>
+      <div id="dataList"></div>
+    </div>
+  </div>
+
+  <script>
+    console.log('Minimal dashboard loading...');
+    console.log('Chart object available:', typeof Chart !== 'undefined' ? 'YES' : 'NO');
+    
+    async function loadData() {
+      try {
+        const response = await fetch('https://temp-sensor.onrender.com/data/24h');
+        const data = await response.json();
+        
+        if (data.length > 0) {
+          const latest = data[data.length - 1];
+          document.getElementById('temp').textContent = latest.temperature.toFixed(1);
+          document.getElementById('humidity').textContent = latest.humidity.toFixed(1);
+          document.getElementById('lastUpdate').textContent = moment(latest.timestamp).format('HH:mm');
+          
+          // Show recent data
+          const dataList = document.getElementById('dataList');
+          dataList.innerHTML = data.slice(-5).map(item => 
+            `<div class="data-item">
+              ${moment(item.timestamp).format('HH:mm')} - 
+              Temp: ${item.temperature.toFixed(1)}°C, 
+              Humidity: ${item.humidity.toFixed(1)}%
+            </div>`
+          ).join('');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        document.body.innerHTML += `<div style="color: red; margin-top: 20px;">Error: ${error.message}</div>`;
+      }
+    }
+    
+    loadData();
+  </script>
+</body>
+</html> 
