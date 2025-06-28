@@ -305,7 +305,7 @@
       }
     }
 
-    function makeChart(ctx, data, unit) {
+    function makeChart(ctx, data, period) {
       if (!data.length) {
         // Hide the canvas and show no data message
         ctx.canvas.style.display = 'none';
@@ -327,7 +327,13 @@
       new Chart(ctx, {
         type: 'line',
         data: {
-          labels: data.map(d => d.timestamp),
+          labels: data.map(d => {
+            if (period === '24h') {
+              return moment(d.timestamp).format('HH:mm');
+            } else {
+              return moment(d.timestamp).format('MMM D');
+            }
+          }),
           datasets: [{
             label: 'Temperature (°C)',
             data: data.map(d => d.temperature),
@@ -381,22 +387,16 @@
               displayColors: true,
               callbacks: {
                 title: function(context) {
-                  return moment(context[0].label).format('MMM D, HH:mm');
+                  const dataIndex = context[0].dataIndex;
+                  const timestamp = data[dataIndex].timestamp;
+                  return moment(timestamp).format('MMM D, HH:mm');
                 }
               }
             }
           },
           scales: {
             x: {
-              type: 'time',
-              time: { 
-                unit: unit, 
-                tooltipFormat: 'MMM d, HH:mm',
-                displayFormats: {
-                  hour: 'HH:mm',
-                  day: 'MMM d'
-                }
-              },
+              type: 'category',
               title: { 
                 display: true, 
                 text: 'Time',
@@ -405,10 +405,9 @@
               grid: {
                 color: 'rgba(0, 0, 0, 0.1)'
               },
-              adapters: {
-                date: {
-                  locale: 'en'
-                }
+              ticks: {
+                maxTicksLimit: 12,
+                maxRotation: 45
               }
             },
             y1: {
@@ -453,10 +452,10 @@
 
         // Create charts
         const ctx24 = document.getElementById('chart24').getContext('2d');
-        makeChart(ctx24, data24, 'hour');
+        makeChart(ctx24, data24, '24h');
 
         const ctx7 = document.getElementById('chart7').getContext('2d');
-        makeChart(ctx7, data7, 'day');
+        makeChart(ctx7, data7, '7d');
 
       } catch (e) {
         document.body.insertAdjacentHTML(
