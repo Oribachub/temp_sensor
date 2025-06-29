@@ -6,7 +6,7 @@ import schedule
 import threading
 import csv
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 from telegram import Bot, Update
 from telegram.ext import (
@@ -51,7 +51,7 @@ def log_reading(temperature, humidity, status='OK', error_msg=''):
         writer = csv.writer(csvfile)
         if not file_exists:
             writer.writerow(["timestamp","temperature_C","humidity_pct","status","error"])
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now().isoformat()
         writer.writerow([
             timestamp,
             f"{temperature:.1f}",
