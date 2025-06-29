@@ -178,6 +178,52 @@
       color: rgba(255, 255, 255, 0.7);
     }
 
+    .refresh-status {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 15px;
+      margin-bottom: 20px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+
+    .refresh-status .status-text {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .refresh-status .countdown {
+      font-weight: 600;
+      color: #4ade80;
+    }
+
+    .refresh-status .last-update {
+      opacity: 0.8;
+    }
+
+    .refresh-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    .refresh-indicator.updating {
+      background: #fbbf24;
+      animation: none;
+    }
+
     /* Simple chart styles */
     .simple-chart {
       width: 100%;
@@ -301,6 +347,16 @@
       <button onclick="updateApiUrl()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 4px; margin-left: 10px; cursor: pointer;">Update</button>
     </div>
 
+    <div class="refresh-status" id="refreshStatus">
+      <div class="status-text">
+        <div class="refresh-indicator" id="refreshIndicator"></div>
+        <span>Auto-refresh: <span class="countdown" id="countdown">60s</span></span>
+      </div>
+      <div class="last-update">
+        Last update: <span id="lastUpdateTime">--</span>
+      </div>
+    </div>
+
     <div class="stats-bar" id="statsBar">
       <div class="stat-card">
         <div class="stat-value" id="currentTemp">--</div>
@@ -343,6 +399,12 @@
     
     // API configuration
     let apiBaseUrl = localStorage.getItem('apiBaseUrl') || 'https://temp-sensor.onrender.com';
+    
+    // Auto-refresh configuration
+    const REFRESH_INTERVAL = 60000; // 60 seconds (1 minute) to match sensor sampling
+    let refreshTimer = null;
+    let countdownTimer = null;
+    let countdownSeconds = 60;
 
     function updateApiUrl() {
       const newUrl = document.getElementById('apiUrl').value.trim();
@@ -356,6 +418,73 @@
     function getApiUrl() {
       // Remove trailing slash if present
       return apiBaseUrl.replace(/\/$/, '');
+    }
+
+    function updateRefreshStatus(isUpdating = false) {
+      const indicator = document.getElementById('refreshIndicator');
+      const lastUpdateTime = document.getElementById('lastUpdateTime');
+      
+      if (isUpdating) {
+        indicator.classList.add('updating');
+        lastUpdateTime.textContent = 'Updating...';
+      } else {
+        indicator.classList.remove('updating');
+        lastUpdateTime.textContent = new Date().toLocaleTimeString();
+      }
+    }
+
+    function updateCountdown() {
+      const countdownElement = document.getElementById('countdown');
+      countdownElement.textContent = `${countdownSeconds}s`;
+      
+      if (countdownSeconds <= 0) {
+        countdownSeconds = 60;
+      }
+    }
+
+    function startCountdown() {
+      countdownSeconds = 60;
+      updateCountdown();
+      
+      countdownTimer = setInterval(() => {
+        countdownSeconds--;
+        updateCountdown();
+        
+        if (countdownSeconds <= 0) {
+          countdownSeconds = 60;
+        }
+      }, 1000);
+    }
+
+    function stopCountdown() {
+      if (countdownTimer) {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+      }
+    }
+
+    function startAutoRefresh() {
+      // Clear any existing timers
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+      }
+      stopCountdown();
+      
+      // Start the refresh timer
+      refreshTimer = setInterval(() => {
+        loadData();
+      }, REFRESH_INTERVAL);
+      
+      // Start countdown
+      startCountdown();
+    }
+
+    function stopAutoRefresh() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+      stopCountdown();
     }
 
     async function fetchData(endpoint) {
@@ -606,6 +735,9 @@
 
     async function loadData() {
       try {
+        // Show updating status
+        updateRefreshStatus(true);
+        
         // Show loading state
         document.getElementById('loading24').classList.remove('hidden');
         document.getElementById('loading7').classList.remove('hidden');
@@ -620,11 +752,15 @@
         createSimpleChart('chart24', data24, '24h');
         createSimpleChart('chart7', data7, '7d');
 
+        // Update refresh status
+        updateRefreshStatus(false);
+
       } catch (e) {
         document.body.insertAdjacentHTML(
           'beforeend',
           `<div class="error">Error loading charts: ${e.message}</div>`
         );
+        updateRefreshStatus(false);
       } finally {
         // Hide loading state
         document.getElementById('loading24').classList.add('hidden');
@@ -636,8 +772,11 @@
       // Set the API URL input value
       document.getElementById('apiUrl').value = apiBaseUrl;
       
-      // Load data
+      // Load data initially
       loadData();
+      
+      // Start auto-refresh
+      startAutoRefresh();
     });
   </script>
 </body>
