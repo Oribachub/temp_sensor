@@ -15,6 +15,7 @@ CORS(app)  # Enable CORS for all routes
 def load_data():
     """Load data from CSV without pandas"""
     if not os.path.isfile(LOG_FILE):
+        print(f"CSV file not found: {LOG_FILE}")
         return []
     
     data = []
@@ -39,13 +40,20 @@ def load_data():
                         'temperature': temperature,
                         'humidity': humidity
                     })
-                except (ValueError, KeyError):
+                except (ValueError, KeyError) as e:
+                    print(f"Error parsing row: {e}")
                     continue  # Skip invalid rows
     except Exception as e:
         print(f"Error reading CSV: {e}")
         return []
     
-    return sorted(data, key=lambda x: x['timestamp'])
+    sorted_data = sorted(data, key=lambda x: x['timestamp'])
+    print(f"Loaded {len(sorted_data)} data points")
+    if sorted_data:
+        print(f"Latest timestamp: {sorted_data[-1]['timestamp']}")
+        print(f"Earliest timestamp: {sorted_data[0]['timestamp']}")
+    
+    return sorted_data
 
 def resample_data(data, interval_minutes):
     """Simple resampling without pandas"""
