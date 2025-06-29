@@ -2,7 +2,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 import csv
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import os
 from collections import defaultdict
 
@@ -23,7 +23,15 @@ def load_data():
             reader = csv.DictReader(file)
             for row in reader:
                 try:
-                    timestamp = datetime.fromisoformat(row['timestamp'].replace('Z', '+00:00'))
+                    # Handle both UTC and local timestamps
+                    timestamp_str = row['timestamp']
+                    if '+00:00' in timestamp_str:
+                        # UTC timestamp - convert to local
+                        timestamp = datetime.fromisoformat(timestamp_str.replace('+00:00', '+00:00')).replace(tzinfo=None)
+                    else:
+                        # Local timestamp
+                        timestamp = datetime.fromisoformat(timestamp_str)
+                    
                     temperature = float(row['temperature_C'])
                     humidity = float(row['humidity_pct'])
                     data.append({
@@ -70,7 +78,7 @@ def resample_data(data, interval_minutes):
 def get_24h_data():
     """Get last 24 hours of data, resampled to 30-minute intervals"""
     data = load_data()
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     cutoff = now - timedelta(hours=24)
     
     # Filter last 24 hours
@@ -82,7 +90,7 @@ def get_24h_data():
 def get_7d_data():
     """Get last 7 days of data, resampled to 2-hour intervals"""
     data = load_data()
-    now = datetime.now(timezone.utc)
+    now = datetime.now()
     cutoff = now - timedelta(days=7)
     
     # Filter last 7 days
