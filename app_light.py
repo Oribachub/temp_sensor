@@ -107,13 +107,39 @@ def get_7d_data():
     # Resample to 2-hour intervals
     return resample_data(recent_data, 120)
 
+@app.route('/debug')
+def debug():
+    """Debug endpoint to see what data is being loaded"""
+    data = load_data()
+    if not data:
+        return jsonify({"error": "No data loaded", "csv_exists": os.path.isfile(LOG_FILE)})
+    
+    latest = data[-1] if data else None
+    earliest = data[0] if data else None
+    
+    return jsonify({
+        "total_entries": len(data),
+        "latest_entry": {
+            "timestamp": latest['timestamp'].isoformat() if latest else None,
+            "temperature": latest['temperature'] if latest else None,
+            "humidity": latest['humidity'] if latest else None
+        },
+        "earliest_entry": {
+            "timestamp": earliest['timestamp'].isoformat() if earliest else None,
+            "temperature": earliest['temperature'] if earliest else None,
+            "humidity": earliest['humidity'] if earliest else None
+        },
+        "csv_file_size": os.path.getsize(LOG_FILE) if os.path.isfile(LOG_FILE) else 0
+    })
+
 @app.route('/')
 def index():
     return jsonify({
         'message': 'Sensor API is running',
         'endpoints': {
             '24h_data': '/data/24h',
-            '7d_data': '/data/7d'
+            '7d_data': '/data/7d',
+            'debug': '/debug'
         }
     })
 
